@@ -20,16 +20,3 @@ THE SOFTWARE.
 """
 
 
-from . import client
-from . import application
-from . import helpers
-from . import version
-
-
-# Compatibility with old import
-class monitoring(object):
-    VERSION = version.VERSION
-
-    Client = client.Client
-    Application = application.Application
-    MonitoringException = helpers.MonitoringException

@@ -25,11 +25,14 @@ class Model(object):
     >>> model = application.create_model('myModelName', 'modelDescription','modelVersion')
     """
     
-    def __init__(self, model_name, model_description, model_version):
-        self.model_name = model_name
-        self.model_description = model_description
-        self.model_version = model_version
-        self._request_path = '/applications/%s' % safe(self.model_name)
+    def __init__(self, transporter, config, application_name, model_name, model_label, model_description, model_version, params):
+        self._transporter = transporter
+        self._config = config
+        self.application_name = application_name
+        self.name = model_name
+        self.label = model_label
+        self.description = model_description
+        self.version = model_version
 
     def __repr__(self):
-        return u'<Model: %r>' % self.model_name
+        return u'<Model: %r>' % self.name

@@ -40,7 +40,10 @@ from .transport import Transport
 from .helpers import deprecated
 from .helpers import safe
 from .helpers import urlify
+from .configs import MonitoringConfig
 
+from .http.transporter import Transporter
+from .http.requester import Requester
 
 MAX_API_KEY_LENGTH = 500
 
@@ -52,55 +55,74 @@ class Client(object):
     You should instantiate a Client object with your ApplicationID, ApiKey to
     start using Monitoring Service.
     """
+    
+    
+    @property
+    def app_id(self):
+        # type: () -> str
 
-    def __init__(self, app_id, api_key, hosts=None, _transport=None):
+        return self._config.app_id
+        
+        
+    @property
+    def api_key(self):
+        # type: () -> str
+    
+        return self._config.api_key
+   
+        
+    def __init__(self, transporter, monitoring_config):
         """
         Monitoring Client initialization
         @param app_id the application ID you have in your admin interface
         @param api_key a valid API key for the service
         @param hosts_array the list of hosts that you have received for the service
         """
-        self._transport = Transport() if _transport is None else _transport
+         # type: (Transporter, SearchConfig) -> None
 
-      ################" START TODO ########################"
-        if not hosts: # TODO mettre la liste des serveurs (1 pour l'instant)
-            fallbacks = [
-                'monitoring.validandgo.com/%s' % app_id,
-            ]
-            random.shuffle(fallbacks)
-
-            self._transport.read_hosts = ['monitoring.validandgo.com/%s' % app_id] 
-            # TODO y a un serveur read.monitoring et write.monitoring
-            self._transport.read_hosts.extend(fallbacks)
-            self._transport.write_hosts = ['monitoring.validandgo.com/%s' % app_id]
-            self._transport.write_hosts.extend(fallbacks)
-        else:
-            self._transport.read_hosts = hosts
-            self._transport.write_hosts = hosts
-
-        self._transport.headers = {
-            'X-Monitoring-Application-Id': app_id,
-            'Content-Type': 'gzip',
-            'Accept-Encoding': 'gzip',
-            'User-Agent': 'Monitoring for Python (%s); Python (%s)' % (VERSION, python_version()),
-        }
-        ################" END TODO ########################"
-        self._app_id = app_id
-        self._api_key = api_key
+        self._transporter = transporter
+        self._config = monitoring_config
 
 
-    @property
-    def app_id(self):
-        return self._app_id
 
-    @property
-    def api_key(self):
-        return self._api_key
+    @staticmethod
+    def connect(app_id=None, api_key=None):
+        # type: (Optional[str], Optional[str]) -> Client
 
-    @property
-    def headers(self):
-        return self._transport.headers
+        config = MonitoringConfig(app_id, api_key)
 
+        return Client.connect_with_config(config)
+        
+
+    @staticmethod
+    def connect_with_config(config):
+        # type: (MonitoringConfig) -> Client
+
+        requester = Requester()
+        transporter = Transporter(requester, config)
+
+        client = Client(transporter, config)
+
+
+        return client
+        
+        
+    def create_application(self, application_name, application_label, description, prediction_type, data_input, data_output, metadata, params):
+
+        """
+        Create the application object
+        @param description the description of application (text)
+        @prediction_type the type of prediction like regression, binary classification, multi-class
+        @data_input explicative features
+        @data_output target
+        @metadata illustrative features
+            Data is a list of dict [{name, label, type, description}] 
+        @params additionnal params like the threshold
+        """
+        # type: (Transporter, MonitoringConfig, str, str, str, str, list, dict, list, dict) -> Application
+        
+        return Application.create(self._transporter, self._config, application_name, application_label, description, prediction_type, data_input, data_output, metadata, params)
+        
 
     def delete_application(self, application_name, request_options=None):
         """
@@ -146,18 +168,11 @@ class Client(object):
         @param application_name name of application concerned.
         @param model_name name of model selected.
         """
-        return Session(self, application_name, model_name)
+        return Session(self._transporter, self._config, application_name, model_name)
         
         
         
-        
-        
-        
-        
-        
-        
-        
-        
+
         
     def get_logs(self, offset=0, length=10, type='all', request_options=None):
         """
@@ -179,18 +194,7 @@ class Client(object):
         return Application(self, application_name, description, prediction_type)
         
         
-    def create_application(self, application_name, description, prediction_type, data_input, data_output, metadata, params):
-        """
-        Create the application object
-        @param description the description of application (text)
-        @prediction_type the type of prediction like regression, binary classification, multi-class
-        @data_input explicative features
-        @data_output target
-        @metadata illustrative features
-            Data is a list of dict [{name, label, type, description}] 
-        @params additionnal params like the threshold
-        """
-        return Application(self, application_name).create(description, prediction_type, data_input, data_output, metadata, params)
+
  
     def list_api_keys(self, request_options=None):
         """List all existing api keys with their associated ACLs."""

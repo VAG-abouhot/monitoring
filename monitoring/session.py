@@ -20,6 +20,8 @@ THE SOFTWARE.
 """
 
 from .helpers import safe
+from .helpers import endpoint
+from monitoring.http.verb import Verb
 
 class Session(object):
     """
@@ -27,22 +29,38 @@ class Session(object):
     >>> session = client.monitoring_session(self,'application_name', 'model_name')
     """
     
-    def __init__(self, client, application_name, model_name):
-        self.client = client
+    def __init__(self, transporter, config, application_name, model_name):
+        self._transporter = transporter
+        self._config = config
         self.application_name = application_name
         self.model_name = model_name
-        self._request_path = '/%s/%s/prediction' % (self.application_name, self.model_name)
+        self.data_input = None
+        self.data_output = None
+        self.metadata = None
+
 
     def __repr__(self):
-        return u'<Session: %r>' % self._request_path
+        return u'<Session: %r>' % self.application_name
         
     def start(self, request_options=None):
         """
         Start a new session to record logs from model.
         """
-        path = ''
-        self._req(False, path, 'PUT', request_options)
-        return self
+        
+        raw_response = self._transporter.write(
+            Verb.PUT,
+            endpoint('applications/{}/{}/sessions', self.application_name, self.model_name),
+            {
+                'type':'session',
+                'application_name': self.application_name,
+                'model_name': self.model_name
+            },
+            request_options
+        )
+        
+        self.id = raw_response
+        
+        return raw_response
  
     def set_data_input(self, data):
         """
@@ -66,8 +84,20 @@ class Session(object):
         """
         Stop session
         """
-        path = ''
-        return self._req(False, path, 'PUT', request_options, data = self)
+        
+        raw_response = self._transporter.write(
+            Verb.PUT,
+            endpoint('applications/{}/{}/sessions', self.application_name, self.model_name),
+            {
+                'type':'session',
+                'id': 1, #TODO self.id,
+                'data_input': self.data_input,
+                'data_output': self.data_output,
+                'metadata':self.metadata
+            },
+            request_options
+        )
+        return raw_response
         
     def _req(self, is_search, path, meth, request_options=None, params=None, data=None):
         """Perform an HTTPS request with retry logic."""

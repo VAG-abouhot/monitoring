@@ -84,6 +84,19 @@ def urlify(e):
     else:
         return encode(e)
 
+def endpoint(path, *args):
+    # type: (str, Optional[Union[str, int]]) -> str
+
+    arguments = []
+    for arg in args:
+        if not sys.version_info >= (3, 0) and isinstance(arg, unicode):
+            arguments.append(
+                quote(arg.encode('utf-8'), safe='')
+            )  # pragma: no cover
+        else:
+            arguments.append(quote(str(arg), safe=''))  # pragma: no cover
+
+    return getattr(path, 'format')(*arguments)
 
 def rotate(l, n=1):
     """
@@ -92,7 +105,20 @@ def rotate(l, n=1):
     """
     return l[n:] + l[:n]
 
+    
+def get_items(dictionary=None):
+    # type: (Optional[dict]) -> Iterable
 
+    if dictionary is None:
+        items = []  # type: Iterable
+    elif sys.version_info >= (3, 0):
+        items = dictionary.items()
+    else:
+        items = dictionary.iteritems()  # pragma: no cover
+
+    return items
+    
+    
 class CustomJSONEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, decimal.Decimal):
