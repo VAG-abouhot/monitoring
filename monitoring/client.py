@@ -40,12 +40,12 @@ from .transport import Transport
 from .helpers import deprecated
 from .helpers import safe
 from .helpers import urlify
+from .helpers import endpoint
 from .configs import MonitoringConfig
 
-from .http.transporter import Transporter
-from .http.requester import Requester
-
-MAX_API_KEY_LENGTH = 500
+from monitoring.http.transporter import Transporter
+from monitoring.http.requester import Requester
+from monitoring.http.verb import Verb
 
 
 
@@ -74,11 +74,10 @@ class Client(object):
     def __init__(self, transporter, monitoring_config):
         """
         Monitoring Client initialization
-        @param app_id the application ID you have in your admin interface
-        @param api_key a valid API key for the service
-        @param hosts_array the list of hosts that you have received for the service
+        @param transporter connection parameters
+        @param monitoring_config user configuration system
         """
-         # type: (Transporter, SearchConfig) -> None
+         # type: (Transporter, MonitoringConfig) -> None
 
         self._transporter = transporter
         self._config = monitoring_config
@@ -100,24 +99,28 @@ class Client(object):
 
         requester = Requester()
         transporter = Transporter(requester, config)
-
         client = Client(transporter, config)
-
 
         return client
         
-        
-    def create_application(self, application_name, application_label, description, prediction_type, data_input, data_output, metadata, params):
+    def init_application(self, application_name): 
+        # type: (str) -> Application
 
+        return Application(self._transporter, self._config, application_name)
+    
+    
+    def create_application(self, application_name, application_label, description, prediction_type, data_input, data_output, metadata, params):
         """
-        Create the application object
-        @param description the description of application (text)
-        @prediction_type the type of prediction like regression, binary classification, multi-class
+        Create an application object
+        @param application_name application system name
+        @param application_label application understandable name        
+        @param description description of application (text)
+        @prediction_type type of prediction (ex: regression, binary classification, multi-class)
         @data_input explicative features
         @data_output target
         @metadata illustrative features
             Data is a list of dict [{name, label, type, description}] 
-        @params additionnal params like the threshold
+        @params additionnal params
         """
         # type: (Transporter, MonitoringConfig, str, str, str, str, list, dict, list, dict) -> Application
         
@@ -128,39 +131,37 @@ class Client(object):
         """
         Delete an application.
         Return an object of the form: {'deleted_at': '2013-01-18T15:33:13.556Z'}
-        @param application_name the name of application to delete
+        @param application_name application name to delete
         """
-        path = '/application/%s' % safe(application_name)
-        return self._req(False, path, 'DELETE', request_options)
+        # type: (str, Optional[RequestOptions]) -> dict
+        
+        raw_response = self._transporter.write(
+            Verb.DELETE,
+            endpoint('/{}/delete', application_name),
+            application_name,
+            request_options
+        )
+        return raw_response
 
+        
     def move_application(self, src_application_name, dst_application_name, request_options=None):
         """
         Move an existing application.
-        @param src_application_name the name of application to copy.
-        @param dst_application_name the new application name that will contains a copy
+        @param src_application_name old name of application to move.
+        @param dst_application_name new name of application name
             of src_application_name (destination will be overriten if it already exist).
         """
-        path = '/application/%s' % safe(src_application_name)
-        request = {'operation': 'move', 'destination': dst_application_name}
-        return self._req(False, path, 'POST', request_options, data=request)
+        # type: (str, str, Optional[RequestOptions]) -> dict
+        
+        raw_response = self._transporter.write(
+            Verb.POST,
+            endpoint('/{}/move', src_application_name),
+            dst_application_name,
+            request_options
+        )
+               
+        return raw_response
 
-
-    def copy_application(self, src_application_name, dst_application_name, request_options=None, scope=None):
-        """
-        Copy an existing application.
-        @param src_application_name the name of index to copy.
-        @param dst_application_name the new application name that will contains a copy of
-            src_application_name (destination will be overriten if it already exist).
-        @param scope the scope of the copy, as a list. Possible items are:
-            settings, rules, synonyms.
-        """
-        path = '/application/%s' % safe(src_application_name)
-        request = {'operation': 'copy', 'destination': dst_application_name}
-
-        if scope is not None:
-            request['scope'] = scope
-
-        return self._req(False, path, 'COPY', request_options, data=request)
 
     def monitoring_session(self, application_name, model_name):        
         """
@@ -168,168 +169,42 @@ class Client(object):
         @param application_name name of application concerned.
         @param model_name name of model selected.
         """
+        # type: (str, str) -> Session
+        
         return Session(self._transporter, self._config, application_name, model_name)
         
-        
-        
 
-        
-    def get_logs(self, offset=0, length=10, type='all', request_options=None):
+    def get_application(self, application_name, request_options=None):
         """
-        Return last logs entries.
-        @param offset Specify the first entry to retrieve (0-based,
-            0 is the most recent log entry).
-        @param length Specify the maximum number of entries to retrieve
-            starting at offset. Maximum allowed value: 1000.
-        """
-        params = {'offset': offset, 'length': length, 'type': type}
-        return self._req(False, '/1/logs', 'GET', request_options, params)
-
-    def init_application(self, application_name):
-        """
-        Get the application object initialized (no server call needed for
-        initialization).
+        Get the application information
         @param application_name the name of application
         """
-        return Application(self, application_name, description, prediction_type)
+        # type: (str, Optional[RequestOptions]) -> dict
         
+        raw_response = self._transporter.read(
+            Verb.GET,
+            endpoint('/{}/get', application_name),
+            application_name,
+            request_options
+        )
         
+        return raw_response
 
+        
+    def browse_applications(self, filters = None, request_options=None):
+        """
+        Get all applications of the user
+        @param filters optional filters list
+        """
+        # type: (Optional[list[dict]], Optional[RequestOptions]) -> dict
+        
+        raw_response = self._transporter.read(
+            Verb.GET,
+            endpoint('/applications',),
+            filters,
+            request_options
+        )
+        
+        return raw_response
+       
  
-    def list_api_keys(self, request_options=None):
-        """List all existing api keys with their associated ACLs."""
-        return self._req(True, '/1/keys', 'GET', request_options)
-
-    def get_api_key(self, api_key, request_options=None):
-        """'Get ACL of an api key."""
-        path = '/1/keys/%s' % api_key
-        return self._req(True, path, 'GET', request_options)
-
-    def delete_api_key(self, api_key, request_options=None):
-        """Delete an existing api key."""
-        path = '/1/keys/%s' % api_key
-        return self._req(False, path, 'DELETE', request_options)
-
-    def restore_api_key(self, api_key, request_options=None):
-        """Restore an api key."""
-        path = '/1/keys/%s/restore' % api_key
-        return self._req(False, path, 'POST', request_options)
-
-    def add_api_key(self, obj,
-                    validity=0,
-                    max_queries_per_ip_per_hour=0,
-                    max_hits_per_query=0,
-                    indexes=None,
-                    request_options=None):
-        """
-        Create a new api key.
-        @param obj can be two different parameters:
-            The list of parameters for this key. Defined by a NSDictionary that
-            can contains the following values:
-                - acl: array of string
-                - indices: array of string
-                - validity: int
-                - referers: array of string
-                - description: string
-                - maxHitsPerQuery: integer
-                - queryParameters: string
-                - maxQueriesPerIPPerHour: integer
-            Or the list of ACL for this key. Defined by an array of NSString that
-            can contains the following values:
-                - search: allow to search (https and http)
-                - addObject: allows to add/update an object in the index (https only)
-                - deleteObject : allows to delete an existing object (https only)
-                - deleteIndex : allows to delete index content (https only)
-                - settings : allows to get index settings (https only)
-                - editSettings : allows to change index settings (https only)
-        @param validity the number of seconds after which the key will be
-            automatically removed (0 means no time limit for this key)
-        @param max_queries_per_ip_per_hour Specify the maximum number of API
-            calls allowed from an IP address per hour.  Defaults to 0 (no rate limit).
-        @param max_hits_per_query Specify the maximum number of hits this API
-            key can retrieve in one call. Defaults to 0 (unlimited)
-        @param indexes the optional list of targeted indexes
-        """
-        if not isinstance(obj, dict):
-            obj = {'acl': obj}
-
-        # Check with `is not None`, because 0 is evaluated to False
-        if validity is not None:
-            obj['validity'] = validity
-        if max_queries_per_ip_per_hour is not None:
-            obj['maxQueriesPerIPPerHour'] = max_queries_per_ip_per_hour
-        if max_hits_per_query is not None:
-            obj['maxHitsPerQuery'] = max_hits_per_query
-
-        if indexes:
-            obj['indexes'] = indexes
-
-        return self._req(False, '/1/keys', 'POST', request_options, data=obj)
-
-
-    def update_api_key(self, api_key, obj,
-                        validity=None,
-                        max_queries_per_ip_per_hour=None,
-                        max_hits_per_query=None,
-                        indexes=None,
-                        request_options=None):
-        """
-        Update a api key.
-        @param obj can be two different parameters:
-            The list of parameters for this key. Defined by a NSDictionary that
-            can contains the following values:
-                - acl: array of string
-                - indices: array of string
-                - validity: int
-                - referers: array of string
-                - description: string
-                - maxHitsPerQuery: integer
-                - queryParameters: string
-                - maxQueriesPerIPPerHour: integer
-            Or the list of ACL for this key. Defined by an array of NSString that
-            can contains the following values:
-                - search: allow to search (https and http)
-                - addObject: allows to add/update an object in the index (https only)
-                - deleteObject : allows to delete an existing object (https only)
-                - deleteIndex : allows to delete index content (https only)
-                - settings : allows to get index settings (https only)
-                - editSettings : allows to change index settings (https only)
-        @param validity the number of seconds after which the key will be
-            automatically removed (0 means no time limit for this key)
-        @param max_queries_per_ip_per_hour Specify the maximum number of API
-            calls allowed from an IP address per hour.  Defaults to 0 (no rate limit).
-        @param max_hits_per_query Specify the maximum number of hits this API
-            key can retrieve in one call. Defaults to 0 (unlimited)
-        @param indexes the optional list of targeted indexes
-        """
-        if not isinstance(obj, dict):
-            obj = {'acl': obj}
-
-        # Check with `is not None`, because 0 is evaluated to False
-        if validity is not None:
-            obj['validity'] = validity
-        if max_queries_per_ip_per_hour is not None:
-            obj['maxQueriesPerIPPerHour'] = max_queries_per_ip_per_hour
-        if max_hits_per_query is not None:
-            obj['maxHitsPerQuery'] = max_hits_per_query
-
-        if indexes:
-            obj['indexes'] = indexes
-
-        path = '/1/keys/%s' % api_key
-        return self._req(False, path, 'PUT', request_options, data=obj)
-
-
-    def is_alive(self, request_options=None):
-        """
-        Test if the server is alive.
-        This performs a simple application-level ping. If up and running, the server answers with a basic message.
-        """
-        return self._req(True, '/1/isalive', 'GET', request_options)
-
-    def _req(self, is_search, path, meth, request_options=None, params=None, data=None):
-        if len(self.api_key) > MAX_API_KEY_LENGTH:
-            if data is None:
-                data = {}
-            data['apiKey'] = self.api_key
-        return self._transport.req(is_search, path, meth, params, data, request_options)

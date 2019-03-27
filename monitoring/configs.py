@@ -14,8 +14,8 @@ class Config(object):
     def __init__(self, app_id=None, api_key=None):
         # type: (Optional[str], Optional[str]) -> None
 
-        app_id = os.environ['ALGOLIA_APP_ID'] if app_id is None else app_id
-        api_key = os.environ['ALGOLIA_API_KEY'] if api_key is None else api_key
+        app_id = os.environ['VALIDANDGO_APP_ID'] if app_id is None else app_id
+        api_key = os.environ['VALIDANDGO_API_KEY'] if api_key is None else api_key
 
         self.app_id = str(app_id)
 
