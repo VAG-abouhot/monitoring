@@ -19,6 +19,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
 
+import uuid
+
 from .helpers import safe
 from .helpers import endpoint
 from monitoring.http.verb import Verb
@@ -46,12 +48,13 @@ class Session(object):
         """
         Start a new session to record logs from model.
         """
-        
+        self.query_id = str(uuid.uuid4())
         raw_response = self._transporter.write(
             Verb.PUT,
-            endpoint('applications/{}/{}/sessions', self.application_name, self.model_name),
+            endpoint('applications/{}/{}/session_start', self.application_name, self.model_name),
             {
                 'type':'session',
+                'query_id':self.query_id,
                 'application_name': self.application_name,
                 'model_name': self.model_name
             },
@@ -87,10 +90,10 @@ class Session(object):
         
         raw_response = self._transporter.write(
             Verb.PUT,
-            endpoint('applications/{}/{}/sessions', self.application_name, self.model_name),
+            endpoint('applications/{}/{}/session_stop', self.application_name, self.model_name),
             {
                 'type':'session',
-                'id': 1, #TODO self.id,
+                'query_id':self.query_id,
                 'data_input': self.data_input,
                 'data_output': self.data_output,
                 'metadata':self.metadata
